@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule
+xmlns:salesforce-composite="http://www.mulesoft.org/schema/mule/salesforce-composite"
+		xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:secure-properties="http://www.mulesoft.org/schema/mule/secure-properties"
+	xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/secure-properties http://www.mulesoft.org/schema/mule/secure-properties/current/mule-secure-properties.xsd
+http://www.mulesoft.org/schema/mule/salesforce-composite http://www.mulesoft.org/schema/mule/salesforce-composite/current/mule-salesforce-composite.xsd">
+	<db:config name="Oracle_JDE_Database_Config"
+		doc:name="Database Config"
+		doc:id="06bf993d-5e0b-4c46-9243-e3fa0cbb2bb5">
+		<db:oracle-connection host="${db.host}"
+			user="${secure::db.user}" password="${secure::db.password}"
+			serviceName="${db.svc}" port="${db.port}">
+			<reconnection failsDeployment="true">
+				<reconnect-forever />
+			</reconnection>
+		</db:oracle-connection>
+	</db:config>
+	<os:object-store name="Object_store_Previous_eplt_Job_Run"
+		doc:name="Object store" doc:id="145bd695-0942-4780-b224-684dc576a1b0"
+		entryTtl="3" entryTtlUnit="DAYS" expirationIntervalUnit="DAYS"
+		config-ref="ObjectStore_Config" />
+	<os:object-store
+		name="Object_store_Previous_Products_Job_Run" doc:name="Object store"
+		doc:id="3ff6ae27-414c-425c-a445-454f6c35fcc2" entryTtl="${os.ttl}"
+		entryTtlUnit="DAYS" expirationIntervalUnit="DAYS"
+		config-ref="ObjectStore_Config" />
+
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="7d4b3863-7c9c-46d3-a74f-7c817e01232d" >
+		<salesforce:basic-connection username="${sf.user}" password="${secure::sf.password}" securityToken="${secure::sf.token}" url="${sf.authURL}" />
+	</salesforce:sfdc-config>
+	<os:config name="ObjectStore_Config"
+		doc:name="ObjectStore Config"
+		doc:id="5991a747-dc85-4554-bb70-46a57f185a9b">
+		<os:connection />
+	</os:config>
+	<configuration-properties
+		doc:name="Configuration properties"
+		doc:id="9140aba5-ed41-43ac-a609-52bed67902a8"
+		file="properties/${mule.env}-properties.yaml" />
+	<secure-properties:config
+		name="Secure_Properties_Config" doc:name="Secure Properties Config"
+		doc:id="05ee9e62-9f14-473c-9331-02061bb3ddc1"
+		file="properties/${mule.env}-secure-properties.yaml"
+		key="${encrypt.key}">
+		<secure-properties:encrypt
+			algorithm="Blowfish" />
+	</secure-properties:config>
+	<!-- <global-property doc:name="Global Property" doc:id="7f18326f-42a8-44b8-90c4-171c89e991d0" 
+		name="encrypt.key" value="secure12345" /> -->
+	<configuration-properties
+		doc:name="Configuration properties"
+		doc:id="8432741f-fc28-46c0-bc69-c612fba9f0aa"
+		file="properties/common.yaml" />
+	<global-property doc:name="Global Property"
+		doc:id="3ee61aa3-577a-4ca9-b056-db0909e0315b" name="encrypt.key"
+		value="secure12345" />
+	<os:object-store name="Object_store_Previous_cif_Job_Run" doc:name="Object store" doc:id="8064606b-9327-421a-9f50-6e7441e92d20" entryTtl="3" entryTtlUnit="DAYS" expirationIntervalUnit="DAYS" config-ref="ObjectStore_Config" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="0d114090-743b-4f13-9204-670c625a21ed" basePath="${pricebooks.basePath}" >
+		<http:request-connection host="${pricebooks.host}" port="${pricebooks.port}" />
+	</http:request-config>
+	<salesforce-composite:composite-config name="Salesforce_Composite_Config" doc:name="Salesforce Composite Config" doc:id="98104f57-ad5c-4347-9363-6a4e7d9ac930" >
+		<salesforce-composite:oauth-user-pass-connection consumerKey="${secure::sf.key}" consumerSecret="${secure::sf.secret}" username="${sf.user}" password="${secure::sf.password}" securityToken="${secure::sf.token}" tokenEndpoint="${sf.URL}"/>
+	</salesforce-composite:composite-config>
+	
+</mule>

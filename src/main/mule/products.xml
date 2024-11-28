@@ -1,0 +1,378 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:salesforce-composite="http://www.mulesoft.org/schema/mule/salesforce-composite"
+	xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd 
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/salesforce-composite http://www.mulesoft.org/schema/mule/salesforce-composite/current/mule-salesforce-composite.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd">
+	
+	
+	<flow name="prodcuts-schedule-flow"
+		doc:id="8d5b841e-3824-4ea5-913b-372158008fc9" tracking:enable-default-events="true">
+		<scheduler doc:name="prodcuts-scheduler" doc:id="0c711d47-7bbf-4133-92bd-7b5b63c36563" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="${scheduler.frequency}" timeUnit="DAYS" startDelay="${scheduler.startDelay}"/>
+			</scheduling-strategy>
+		</scheduler>
+		<ee:transform doc:name="jobRunTime"
+			doc:id="73ad49be-1a88-404e-be69-f1b44c3eec4c">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable resource="dwl/vars-productsJobRun.dwl" variableName="productsJobRun" />
+			
+
+</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="jobRun logger" doc:id="0f6dc411-564b-431c-b0ca-1c605cb7958e" message="#[vars.productsJobRun]" category="${log.category}"/>
+		<os:retrieve doc:name="retrievePreviousJobRun"
+			doc:id="e2d0b843-ba55-48f7-97e1-5f6623481abc" key="previousProductsJobRun"
+			target="previousProductsJobRun" objectStore="Object_store_Previous_Products_Job_Run">
+			<os:default-value><![CDATA[#[vars.productsJobRun]]]></os:default-value>
+		</os:retrieve>
+		<logger level="INFO" doc:name="Logger" doc:id="7115635c-ed62-4309-a6f4-202a268916bc" message='#["Calling jde-to-sf-app-sub-flow"]' category="${log.category}"/>
+		<flow-ref doc:name="jde-products-sub-flow"
+			doc:id="a495c312-8210-4081-a45c-eb0cbac986d0" name="products-sub-flow" />
+		<os:store doc:name="Store current job run details"
+			doc:id="4700ffbc-b3f9-43d1-ba22-de3c5bf61ea0" key="previousProductsJobRun" objectStore="Object_store_Previous_Products_Job_Run">
+			<os:value><![CDATA[#[vars.productsJobRun]]]></os:value>
+		</os:store>
+	</flow>
+	<sub-flow name="products-sub-flow" doc:id="cfb94c03-7635-47cd-a87c-8e43f54042bb" >
+		<ee:transform doc:name="Transform Message" doc:id="ee6c3909-4a2b-46b6-a85a-4838fb5e97a3">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+readUrl("classpath://queryScript/sqlScript-products-consolidated-$(p('mule.env')).dwl","text/plain")]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="excelData"><![CDATA[%dw 2.0
+output application/json
+---
+readUrl("classpath://product-family-data.xlsx","application/xlsx", {header: true})]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:dynamic-evaluate doc:name="Dynamic Evaluate" doc:id="34dc3c5d-c7c3-475b-99db-d18b42dfdbcf" expression="#[payload]" />
+		<db:select doc:name="Get Product Details" doc:id="eca0b871-15e1-414c-8f18-9954d2dbdca9" config-ref="Oracle_JDE_Database_Config">
+			<db:sql><![CDATA[#[payload]]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="var-productMaster" doc:id="aadfdaa9-114c-4b4f-ba27-ac83d942f444" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="productMaster" ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<ee:transform doc:name="Transform products to json" doc:id="c8ed3c81-6356-4c76-821b-836c4605f9a2">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<ee:transform doc:name="map metadata" doc:id="7d30833c-b690-454c-894a-6bef2a5c727f">
+				<ee:message>
+				</ee:message>
+				<ee:variables>
+				<ee:set-variable resource="dwl/metadata.dwl" variableName="metadata" />
+				</ee:variables>
+			</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="42305411-7f08-4649-b189-99616d24ad23" message="#[vars.productMaster]" />
+		<flow-ref doc:name="products-mapping-subflow" doc:id="4e3629f0-b708-428a-bf78-172cc7216a60" name="products-mapping-subflow"/>
+		<ee:transform doc:name="Transform Message" doc:id="653aea96-a584-4662-bd73-c3f56f5db2c0" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="metadata" ><![CDATA[%dw 2.0
+output application/json
+---
+{"drawExternalID": vars.metadata map ((item, index) -> item.drawExternalIDLanded),
+"srtxExternalID": vars.metadata map ((item, index) -> item.srtxExternalIDLanded)}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+	</sub-flow>
+	<sub-flow name="products-mapping-subflow" doc:id="78a528d9-e2e9-4ef9-8d20-a246506765d0" >
+		<ee:transform doc:name="Transform Message" doc:id="1dd3ed0b-ba83-4915-98d1-a5e5497e8eb5">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.metadata]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="Choice" doc:id="a666fd30-0a71-430e-a502-4b66a83a4158" >
+			<when expression="#[payload !=[]]" >
+				<scatter-gather doc:name="Scatter-Gather" doc:id="c7297df8-3b71-4820-b567-001629c86ac7" maxConcurrency="1" >
+					<route >
+						<ee:transform doc:name="drawExternalIDLanded" doc:id="f6f66c22-29f0-43c6-a6b1-3c2ac64c66e6" >
+							<ee:message />
+							<ee:variables >
+								<ee:set-variable variableName="exId" ><![CDATA[%dw 2.0
+output application/json
+---
+"drawExternalIDLanded"]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<flow-ref doc:name="Flow Reference" doc:id="1ca4ed22-2b96-42e9-8b61-bb458bde5ba7" name="productsFlow" />
+					</route>
+					<route >
+						<ee:transform doc:name='srtxExternalIDLanded"' doc:id="0a0ebb22-8279-4a0e-a5ab-ad43d666f072" >
+							<ee:message />
+							<ee:variables >
+								<ee:set-variable variableName="exId" ><![CDATA[%dw 2.0
+output application/json
+---
+"srtxExternalIDLanded"]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<flow-ref doc:name="Flow Reference" doc:id="f3581596-5d52-4d10-86e2-5d0ec52864d4" name="productsFlow" />
+					</route>
+				</scatter-gather>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Inavlid Inputs to process" doc:id="82224cf6-818f-4481-b338-ce6e49849fd7" message="No Valid Inputs to process" />
+			</otherwise>
+		</choice>
+	</sub-flow>
+	<sub-flow name="landed-min-max-choice-subflow" doc:id="e86a66b0-7614-4ff4-b035-cc9de1d5f440" >
+		<choice doc:name="Choice" doc:id="7a6b8b64-dea5-49a1-af93-a4d05057cc33" >
+			<when expression="#[vars.metadata !=[]]">
+				<scatter-gather doc:name="Scatter-Gather" doc:id="78db3b74-f33a-49ff-a2cc-19e78f35d780" >
+					<route >
+						<batch:job jobName="base-part-batch-job" doc:id="204e9eba-e5ac-4f4a-a969-9ea272e0a8e9">
+					<batch:process-records>
+						<batch:step name="base-part-batch-step" doc:id="1ed0d884-8de9-4bea-90ec-6b6eece37b03" acceptExpression='#[vars.metadata.drawExternalID != null  and vars.metadata.drawExternalID !="" and vars.metadata.drawExternalID != [] and vars.metadata.drawExternalID != [""]  ]'>
+							<ee:transform doc:name="Transform Message" doc:id="62b483ff-5a61-4dc4-ae68-595a9427b069">
+					<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+readUrl("classpath://queryScript/sqlScript-landed-imdraw-$(p('mule.env')).dwl","text/plain")]]></ee:set-payload>
+
+					</ee:message>
+					<ee:variables>
+					
+</ee:variables>
+				</ee:transform>
+							<ee:dynamic-evaluate doc:name="Dynamic Evaluate" doc:id="8161dbe8-250a-4bd4-8ee3-8e9e84a7f590" expression="#[payload]" />
+							<db:select doc:name="Select" doc:id="12cc0511-1613-4e6d-a84d-5a97b1e45f37" config-ref="Oracle_JDE_Database_Config" target="LANDED_Draw">
+			<db:sql><![CDATA[#[payload]]]></db:sql>
+
+				</db:select>
+							<ee:transform doc:name="Transform Message" doc:id="7069d58e-2c21-482d-bfbc-a6765535be1c">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.metadata.drawExternalIDLanded map ((item, index) ->{       
+	"External_ID__c":item,
+    "LANDED_COST_MIN_DRAW": payload[0].LANDED_COST_MIN_DRAW,
+    "LANDED_COST_MAX_DRAW": payload[0].LANDED_COST_MAX_DRAW
+    
+})
+ ]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+							<batch:aggregator doc:name="Batch Aggregator" doc:id="edbf3840-f822-4ab0-bfb7-0c5a3618435f" size="100">
+								<salesforce:upsert doc:name="Upsert" doc:id="5d82c537-115d-424e-88ad-5ea0aa846ce0" config-ref="Salesforce_Config" objectType="${sf.object}" externalIdFieldName="${sf.extId}" />
+								<logger level="INFO" doc:name="Logger" doc:id="189cacfb-03b1-4aa2-906c-3d89e7428aec" message="#[%dw 2.0&#10;output application/json&#10;---&#10;payload]" />
+							</batch:aggregator>
+						</batch:step>
+					</batch:process-records>
+				</batch:job>
+					</route>
+					<route >
+						<batch:job jobName="industry-part-batch-job" doc:id="d2203d0c-b89e-448b-bb08-8faad287e4e1">
+					<batch:process-records>
+						<batch:step name="industry-part-batch-step" doc:id="72a5c3fd-32f9-49c0-914f-60c585ea68bd" acceptExpression='#[vars.metadata.srtxExternalID != null  and vars.metadata.srtxExternalID !="" and vars.metadata.srtxExternalID != []  and vars.metadata.srtxExternalID != [""] ]'>
+							<ee:transform doc:name="Transform Message" doc:id="520b7a50-f613-45bc-90b5-7110a6f3ebee">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output text/plain
+---
+readUrl("classpath://queryScript/sqlScript-landed-imsrtx-$(p('mule.env')).dwl","text/plain")]]></ee:set-payload>
+
+			</ee:message>
+			<ee:variables>
+			
+</ee:variables>
+		</ee:transform>
+							<ee:dynamic-evaluate doc:name="Dynamic Evaluate" doc:id="40a4f4d0-4a75-4a1d-9ccf-1686661a147a" expression="#[payload]" />
+							<db:select doc:name="Select" doc:id="075e7d30-f4a2-4900-80be-48df980598a9" config-ref="Oracle_JDE_Database_Config" target="LANDED_Srtx">
+					<db:sql><![CDATA[#[payload]]]></db:sql>
+				</db:select>
+							<ee:transform doc:name="Transform Message" doc:id="b7a97495-fb4d-488d-b63f-3bfbeb34a4d6">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.metadata.drawExternalIDLanded map ((item, index) ->{       
+	"External_ID__c":item,
+    "LANDED_COST_MIN_DRAW": payload[0].Landed_Cost_Min_SRTX,
+    "LANDED_COST_MAX_DRAW": payload[0].Landed_Cost_Max_SRTX
+    
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+							<batch:aggregator doc:name="Batch Aggregator" doc:id="99f4b29e-a0f2-48b6-86fb-53896458d804" size="100">
+								<salesforce:upsert doc:name="Upsert" doc:id="e75442dd-7457-46ed-a447-0398edc2f03f" config-ref="Salesforce_Config" objectType="${sf.object}" externalIdFieldName="${sf.extId}" />
+								<logger level="INFO" doc:name="Logger" doc:id="5cc2b1f2-8482-4710-998a-75234cc8b175" message="Dummy to Call Pricebooks if it is a New Product. Existing prodcut DO NOT CALL PB" />
+							</batch:aggregator>
+						</batch:step>
+					</batch:process-records>
+				</batch:job>
+					</route>
+				</scatter-gather>
+			</when>
+		</choice>
+	</sub-flow>
+	<flow name="productsFlow" doc:id="ba87ba3f-0923-45ca-b7d8-c92aae36fd27">
+		<batch:job jobName="productsBatch_Job" doc:id="4fb2e0d8-2284-4264-a39f-33d4ba3ae5ce">
+			<batch:process-records>
+				<batch:step name="Batch_Step" doc:id="9ad8ef65-f7b6-4261-9366-431bd0ed6275">
+					<ee:transform doc:name="Transform Message" doc:id="8d6205cf-d69c-40f9-9a9f-4a95249c0cec">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+if(vars.exId == "drawExternalIDLanded")
+    {"a":payload - "srtxExternalIDLanded" - "drawExternalIDLanded",
+    	"External_ID__c": payload."drawExternalIDLanded"
+    }
+ else
+    {"a":payload - "srtxExternalIDLanded" - "drawExternalIDLanded",
+    	"External_ID__c":payload."srtxExternalIDLanded"
+    }]]></ee:set-payload>
+						</ee:message>
+						<ee:variables>
+						</ee:variables>
+					</ee:transform>
+					<salesforce:query doc:name="Check Base External Id in Salesforce" doc:id="4f5cf168-d92f-45cf-9668-a5b7f8c33477" config-ref="Salesforce_Config" target="SFExtId">
+						<salesforce:salesforce-query><![CDATA[select Id from Product2 where External_ID__c = :externalId__c]]></salesforce:salesforce-query>
+						<salesforce:parameters><![CDATA[#[output application/java
+---
+{
+	externalId__c : "'" ++ payload."External_ID__c" ++ "'"
+}]]]></salesforce:parameters>
+					</salesforce:query>
+					<ee:transform doc:name="Transform Message1" doc:id="a08a029a-aa25-435c-b315-2ba610a5569a">
+						<ee:message>
+							<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload.a ++ {"id":vars.SFExtId[0].Id, "External_ID__c": payload.External_ID__c} ]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="6d459c67-136c-4fb8-aa4e-848071c74248" size="200">
+						<ee:transform doc:name="Transform Message" doc:id="cbd7288a-bd72-4871-b4a5-26047e9aaea3">
+							<ee:message>
+								<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload map read( $, 'application/json')]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<ee:transform doc:name="Transform Message1" doc:id="a761795b-57e9-43c9-8ffc-5cbf09f4b638">
+							<ee:message />
+							<ee:variables>
+								<ee:set-variable variableName="createdata"><![CDATA[%dw 2.0
+output application/json
+---
+(payload filter ((item, index) -> item.id == null))]]></ee:set-variable>
+								<ee:set-variable variableName="updatedata"><![CDATA[%dw 2.0
+output application/json
+---
+payload filter ((item, index) -> item.id != null)]]></ee:set-variable>
+							</ee:variables>
+						</ee:transform>
+						<scatter-gather doc:name="Scatter-Gather-data" doc:id="9915737b-977e-407a-8ae2-b37ef7c9d710">
+							<route>
+								<salesforce:update type="${sf.object}" doc:name="Update" doc:id="a129ecd6-e0dd-4120-9959-456aa719efab" config-ref="Salesforce_Config">
+									<salesforce:records><![CDATA[#[vars.updatedata]]]></salesforce:records>
+								</salesforce:update>
+								<ee:transform doc:name="Transform Message" doc:id="e47ba534-9eb9-4748-99df-8070e4929705">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+								<logger level="INFO" doc:name="Logger" doc:id="6e333fee-3475-4e84-b431-c0e6fadc4a9e" message="#[payload]"/>
+							</route>
+							<route>
+								<salesforce:create type="${sf.object}" doc:name="Create" doc:id="2e607db3-bd7d-4b01-aab4-190fd2fee8fd" config-ref="Salesforce_Config">
+									<salesforce:records><![CDATA[#[vars.createdata]]]></salesforce:records>
+								</salesforce:create>
+								<ee:transform doc:name="Transform Message" doc:id="b73cb20e-ca5e-47ed-8a8f-db8ba1cc01ca">
+									<ee:message>
+									</ee:message>
+									<ee:variables>
+										<ee:set-variable variableName="product2id"><![CDATA[%dw 2.0
+output application/json
+---
+payload.items map ( {Product2Id: $.id})]]></ee:set-variable>
+									</ee:variables>
+								</ee:transform>
+								<flow-ref doc:name="get-pricebook-id" doc:id="e57e0fec-d4df-4f64-81c8-e4985ea9c115" name="get-pricebook-id" />
+								<ee:transform doc:name="Transform Message" doc:id="cdc67fbf-16c2-401e-afef-a736b468bd3e">
+									<ee:message>
+										<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.createData map (item, index) -> (
+{
+  	IsActive: item.IsActive,
+  	//ProductCode : item.ProductCode,
+  	CurrencyIsoCode : item.CurrencyIsoCode,
+  	//Name : item.Name,
+  	Product2Id : vars.product2id.Product2Id[index],
+  	PriceBookId: payload,
+  	UnitPrice : 0 
+})]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+								<async doc:name="Async" doc:id="ba438938-d994-47b1-8475-b19ac05599d8" >
+									<http:request method="POST" doc:name="Request" doc:id="b9464c42-1bd4-4037-8f35-1bbdf1100a31" config-ref="HTTP_Request_configuration" path="${pricebooks.uri}" />
+									<logger level="INFO" doc:name="Logger" doc:id="40aefcd5-054d-4bc1-94f2-706fa3e078e0" message="Request to Pricebooks API Completed."/>
+								</async>
+							</route>
+						</scatter-gather>
+					</batch:aggregator>
+				</batch:step>
+			</batch:process-records>
+		</batch:job>
+	</flow>
+	<sub-flow name="get-pricebook-id" doc:id="1ca0de7f-30cb-406d-bf57-b1989d4d1eae">
+		<ee:transform doc:name="Transform Message" doc:id="c7dffca5-2d10-40aa-917b-b22739049341">
+			<ee:message>
+				<ee:set-payload resource="dwl/Execute-composite-request.dwl" />
+			</ee:message>
+		</ee:transform>
+		<salesforce-composite:execute-composite-request doc:name="Execute composite request" doc:id="d652d91e-f490-4746-b066-b3c5dead9bcd" config-ref="Salesforce_Composite_Config" />
+		<ee:transform doc:name="Transform Message" doc:id="b0e004e5-c020-49e7-aa79-a47146cbf820">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{id:(payload.compositeResponse map ($..body."records")[0]) map ((item, index) -> item[0].Id)}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="7dedbfbf-50c9-48de-8a44-428dab93f595" message="The list of PriceBook IDs are : ++ #[payload]"/>
+	</sub-flow>
+
+</mule>
