@@ -11,19 +11,12 @@ api:
   spec: "resource::${api.groupId}:${api.artifactId}:${api.version}:raml:zip:${api.artifactId}.raml" # replaced through Maven resource filtering
   majorVersion: "v1"
 
-os.ttl: "3"
-
-sf:
-  object: "Product2"
-  extId: "External_ID__c"
-
-
 log.level: "INFO"
 log.category: "TRACKING"
 
 waitArgs: "10000"
 response.timeout: "15000"
-batch.size : "100"
+batch.size : "1000"
 
 max:
   retries: "3"

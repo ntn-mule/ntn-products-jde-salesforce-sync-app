@@ -1,5 +1,5 @@
 %dw 2.0
-output application/java 
+output application/json 
 ---
 payload map (record) -> {
  "X1st_Address_Number__c": record.X1st_Address_Number__c default "" ,
@@ -72,7 +72,5 @@ payload map (record) -> {
  "BillingCity":  record.BillingAddress.BillingCity default "" ,
  "BillingStateCode": record.BillingAddress.BillingStateCode default "" ,
  "BillingPostalCode" : record.BillingAddress.BillingPostalCode default "" ,
- "BillingCountryCode" : record.BillingAddress.BillingCountryCode default "" ,
- "Date_Account_Opened__c": record.Date_Account_Opened__c as Date  default "",
- "Date_Of_Last_Credit_Review__c": record.Date_Of_Last_Credit_Review__c as Date default ""
+ "BillingCountryCode" : record.BillingAddress.BillingCountryCode default ""
 }
